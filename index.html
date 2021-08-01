@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="robots" content="noindex" />
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>部屋の気温</title>
+  <style>
+#chartContainer { 
+  width: 100%;
+  height: 85vh;
+}
+  </style>
+</head>
+<body>
+  <h3><span id="current_time"></span>の部屋の温度 <span id="current_temp"></span>℃, 湿度<span id="current_hum"></span>%</h3>
+  <div id="chartContainer">
+    <canvas id="myChart"></canvas>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/moment"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-moment"></script>
+  <!--<script src="https://cdn.jsdelivr.net/npm/hammerjs"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@next"></script>-->
+  <script>
+
+//setInterval(currentTemp, 60*1000); //1分毎 これ動的に設定したほうがいいかも
+class GraphControl {
+  constructor(){
+    this.ctx = document.getElementById("myChart");
+    this.ctx.width = this.ctx.style.width;
+    this.ctx.height = this.ctx.style.height; //これonresize時にやりたいね
+    let data = {
+      datasets: [{
+         label: 'Temperature',
+		 yAxisID: 'y',
+         //data: mydata,
+		 data: [],
+         borderColor: 'red',
+         borderWidth: 1,
+         pointBackgroundColor: '#f00',
+         pointBorderColor: '#f00',
+         pointRadius: 1,
+         pointHoverRadius: 5,
+         fill: false,
+         tension: 0,
+         showLine: true
+      }, {
+         label: 'Humidity',
+		 yAxisID: 'y1',
+         //data: mydata,
+		 data: [],
+         borderColor: 'blue',
+         borderWidth: 1,
+         pointBackgroundColor: '#00f',
+         pointBorderColor: '#00f',
+         pointRadius: 1,
+         pointHoverRadius: 5,
+         fill: false,
+         tension: 0,
+         showLine: true
+      }]
+    };
+    const config = {
+      type: 'scatter',
+      data: data,
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: {
+            type: 'time',
+            time: {
+              minUnit: 'hour',
+              displayFormats: {
+                hour: 'D日HH時'
+              }
+            }
+          },
+		  y: {
+            type: 'linear',
+            position: 'left',
+            ticks: {
+			  color: "#f77",
+              callback: function (value){
+                return value + '℃';
+              }
+            }
+          }, 
+		  y1: {
+            type: 'linear',
+            position: 'right',
+			min: 0.0,
+			max: 100.0,
+            ticks: {
+			  color: "#77f",
+              callback: function (value){
+                return value + '%';
+              }
+            }
+          }
+        }
+      }
+    };
+    this.chart = new Chart(this.ctx, config);
+  }
+  setData(tempdata, humdata){
+    this.chart.data.datasets[0].data = tempdata;
+    this.chart.data.datasets[1].data = humdata;
+    this.chart.update();
+  }
+  setCurrentTemp(time, temp, hum){
+    document.getElementById("current_time").innerText = moment.utc(time).local().format('H時mm分');
+    document.getElementById("current_temp").innerText = Math.round(temp*10)/10;
+	document.getElementById("current_hum").innerText = Math.round(hum*10)/10;
+  }
+  getTemperatures(){
+    //TODO: 2重実行を避けるコードを書く
+    let mytempdata = [];
+	let myhumdata = [];
+    const requestURL = "https://wvjih4gmul.execute-api.us-east-2.amazonaws.com/dev";
+    const request = new XMLHttpRequest();
+    request.open('GET', requestURL);
+    request.responseType = 'json';
+    request.send();
+    request.onload = function() {
+      const response = request.response;
+      const data = response["data"];
+	  const newesttime = data[data.length - 1]["time"];
+	  const newesttemp = data[data.length - 1]["temperature"];
+	  const newesthum = data[data.length - 1]["humidity"];
+      for (let datum of data) {
+        let datetime = datum["time"];
+        let temp = datum["temperature"];
+		let hum = datum["humidity"];
+        mytempdata.push( {x: moment.utc(datetime), y: temp} );
+        myhumdata.push( {x: moment.utc(datetime), y: hum} );
+      }
+	  this.setCurrentTemp(newesttime, newesttemp, newesthum);
+      this.setData(mytempdata, myhumdata);
+	  
+	  //最後の時間+21分-現在の時間 後にgetTempeatures実行
+	  let wait_millisec = moment.utc(newesttime).add(10, 'm') - moment();
+	  window.setTimeout(this.getTemperatues, wait_millisec);
+    }.bind(this);
+  }
+}
+var graph = new GraphControl();
+graph.getTemperatures();
+
+  </script>
+</body>
+</html>
+
