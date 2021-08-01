@@ -141,7 +141,8 @@ class GraphControl {
 	  
 	  //最後の時間+21分-現在の時間 後にgetTempeatures実行
 	  let wait_millisec = moment.utc(newesttime).add(10, 'm') - moment();
-	  window.setTimeout(this.getTemperatues.bind(this), wait_millisec);
+	  let that = this;
+	  window.setTimeout(function (){that.getTemperatues();}, wait_millisec);
     }.bind(this);
   }
 }
